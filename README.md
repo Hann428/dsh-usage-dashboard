@@ -17,7 +17,7 @@ It adds a compact **Usage** tab to the conversation view. The tab shows the Deep
 ## Install
 
 ```bash
-dsh plugin --profile web add github:<owner>/dsh-usage-dashboard
+dsh plugin --profile web add github:Hann428/dsh-usage-dashboard
 ```
 
 Restart `dsh web`, then open a conversation and select the **Usage** tab.
