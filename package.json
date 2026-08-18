@@ -11,6 +11,14 @@
     "cordis.patch.yml"
   ],
   "license": "BSD-3-Clause",
+  "homepage": "https://github.com/Hann428/dsh-usage-dashboard#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Hann428/dsh-usage-dashboard.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Hann428/dsh-usage-dashboard/issues"
+  },
   "keywords": [
     "deepseek-harness",
     "dsh-plugin",
