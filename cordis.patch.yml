@@ -1,0 +1,4 @@
+# dsh-usage-dashboard bundle patch: mount the host route and tool entry.
+- insert:
+    - id: dsh-usage-dashboard
+      name: dsh-usage-dashboard
