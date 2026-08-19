@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add a compact balance health light with configurable amount and percentage warning thresholds.
 - Remove the misleading default-model highlight from price rows. The Harness conversation model selector owns the current session model display.
 
 ## 0.0.1

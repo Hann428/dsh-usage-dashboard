@@ -51,6 +51,14 @@ export interface Config {
   platformUsageURL: string
   /** Balance request timeout. */
   timeoutMs: number
+  /** Balance currency used by the health indicator. */
+  healthCurrency: string
+  /** Orange-light threshold; 0 disables the amount check. */
+  alertBalance: number
+  /** Orange-light percentage threshold; 0 disables the percentage check. */
+  alertBalancePercent: number
+  /** Balance value treated as 100% for percentage checks. */
+  balancePercentBase: number
 }
 
 export const Config = z.object({
@@ -58,6 +66,10 @@ export const Config = z.object({
   baseURL: z.string().default('https://api.deepseek.com'),
   platformUsageURL: z.string().default('https://platform.deepseek.com/usage'),
   timeoutMs: z.number().default(10_000),
+  healthCurrency: z.string().default('CNY'),
+  alertBalance: z.number().min(0).default(0),
+  alertBalancePercent: z.number().min(0).max(100).default(0),
+  balancePercentBase: z.number().min(0).default(0),
 })
 
 interface BalanceInfo {
@@ -96,6 +108,14 @@ interface PricingInfo {
     output: PricePair
   }
   error?: { code: string; message: string }
+}
+
+interface BalanceHealth {
+  level: 'ok' | 'warning' | 'unknown'
+  currency: string
+  amount?: number
+  percent?: number
+  triggeredBy: ('amount' | 'percent')[]
 }
 
 const PRICING_DOCS_URL = 'https://api-docs.deepseek.com/zh-cn/quick_start/pricing'
@@ -155,6 +175,29 @@ function parsePricingRows(html: string, period: BillingPeriod): PricingInfo['row
     throw new Error('官方价格表格式未匹配')
   }
   return { cacheHitInput, cacheMissInput, output }
+}
+
+function parseAmount(value: string): number | undefined {
+  const amount = Number(value.replace(/,/g, '').trim())
+  return Number.isFinite(amount) ? amount : undefined
+}
+
+function balanceHealth(payload: BalancePayload | undefined, config: Config): BalanceHealth {
+  const currency = config.healthCurrency.trim().toUpperCase() || 'CNY'
+  const info = payload?.balance_infos.find((entry) => entry.currency.toUpperCase() === currency)
+  const amount = info === undefined ? undefined : parseAmount(info.total_balance)
+  if (payload === undefined || !payload.is_available || amount === undefined) {
+    return { level: 'unknown', currency, triggeredBy: [] }
+  }
+  const triggeredBy: ('amount' | 'percent')[] = []
+  if (config.alertBalance > 0 && amount < config.alertBalance) {
+    triggeredBy.push('amount')
+  }
+  const percent = config.balancePercentBase > 0 ? amount / config.balancePercentBase * 100 : undefined
+  if (percent !== undefined && config.alertBalancePercent > 0 && percent < config.alertBalancePercent) {
+    triggeredBy.push('percent')
+  }
+  return { level: triggeredBy.length > 0 ? 'warning' : 'ok', currency, amount, percent, triggeredBy }
 }
 
 export function apply(ctx: PluginContext, config: Config): void {
@@ -245,8 +288,8 @@ export function apply(ctx: PluginContext, config: Config): void {
         platformUsageURL: config.platformUsageURL,
         pricing,
         ...(result.ok
-          ? { configured: true, balance: result.payload, source: result.source }
-          : { configured: false, error: { code: result.code, message: result.message } }),
+          ? { configured: true, balance: result.payload, source: result.source, health: balanceHealth(result.payload, config) }
+          : { configured: false, health: balanceHealth(undefined, config), error: { code: result.code, message: result.message } }),
       })
     },
   }), 'dsh-usage-dashboard: api route')
@@ -270,6 +313,8 @@ export function apply(ctx: PluginContext, config: Config): void {
         lines.push(`查询失败 [${result.code}]: ${result.message}`)
       } else {
         lines.push(`账户可用: ${result.payload.is_available ? '是' : '否'}`)
+        const health = balanceHealth(result.payload, config)
+        lines.push(`余额灯: ${health.level === 'warning' ? '告警' : health.level === 'ok' ? '正常' : '未知'}（${health.currency}）`)
         for (const info of result.payload.balance_infos) {
           lines.push(`${info.currency}: 总额 ${info.total_balance}（赠送 ${info.granted_balance} / 充值 ${info.topped_up_balance}）`)
         }

@@ -61,6 +61,14 @@ interface PricingInfo {
   error?: { code: string; message: string }
 }
 
+interface BalanceHealth {
+  level: 'ok' | 'warning' | 'unknown'
+  currency: string
+  amount?: number
+  percent?: number
+  triggeredBy: ('amount' | 'percent')[]
+}
+
 interface ApiResponse {
   ok: boolean
   ts: number
@@ -68,6 +76,7 @@ interface ApiResponse {
   baseURL: string
   platformUsageURL: string
   pricing?: PricingInfo
+  health?: BalanceHealth
   configured?: boolean
   balance?: { is_available: boolean; balance_infos: BalanceInfo[] }
   source?: string
@@ -146,12 +155,14 @@ function UsagePanel(): ReactNode {
   return h('div', { style: box },
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
       h('span', { style: { fontWeight: 600, fontSize: '14px' } }, 'DeepSeek 用量'),
-      h('a', {
-        href: data.platformUsageURL,
-        target: '_blank',
-        rel: 'noopener noreferrer',
-        style: linkStyle,
-      }, '打开平台用量页 →')),
+      h('span', { style: headerActionsStyle },
+        healthDot(data.health, data.ts, now),
+        h('a', {
+          href: data.platformUsageURL,
+          target: '_blank',
+          rel: 'noopener noreferrer',
+          style: linkStyle,
+        }, '打开平台用量页 →'))),
     data.configured && data.balance !== undefined
       ? h('div', { style: { display: 'flex', flexDirection: 'column', gap: '4px' } },
         row('账户可用', data.balance.is_available ? '是' : '否'),
@@ -173,6 +184,20 @@ const linkStyle: CSSProperties = {
   fontWeight: 600,
 }
 
+const headerActionsStyle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '10px',
+}
+
+const healthDotBaseStyle: CSSProperties = {
+  width: '8px',
+  height: '8px',
+  borderRadius: '50%',
+  display: 'inline-block',
+  flex: '0 0 auto',
+}
+
 const buttonStyle: CSSProperties = {
   background: 'transparent',
   border: '1px solid #3b4252',
@@ -182,6 +207,25 @@ const buttonStyle: CSSProperties = {
   cursor: 'pointer',
   fontFamily: 'system-ui, sans-serif',
   fontSize: '13px',
+}
+
+function healthDot(health: BalanceHealth | undefined, updatedAt: number, now: Date): ReactNode {
+  const level = health?.level ?? 'unknown'
+  const color = level === 'warning' ? '#f6a04d' : level === 'ok' ? '#58c777' : '#596070'
+  const elapsed = now.getTime() - updatedAt
+  const blinking = level === 'warning' && elapsed >= 0 && elapsed < 60_000
+  const visible = !blinking || Math.floor(elapsed / 3_000) % 2 === 0
+  return h('span', {
+    'aria-hidden': true,
+    title: level === 'warning' ? '余额低于告警值' : level === 'ok' ? '余额正常' : '余额状态未知',
+    style: {
+      ...healthDotBaseStyle,
+      background: color,
+      opacity: visible ? 1 : 0.28,
+      boxShadow: level === 'unknown' ? 'none' : `0 0 7px ${color}`,
+      transition: 'opacity 180ms ease',
+    },
+  })
 }
 
 function pricingRows(pricing: PricingInfo | undefined, now: Date): ReactNode {

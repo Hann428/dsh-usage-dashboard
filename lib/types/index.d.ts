@@ -48,17 +48,33 @@ export interface Config {
     platformUsageURL: string;
     /** Balance request timeout. */
     timeoutMs: number;
+    /** Balance currency used by the health indicator. */
+    healthCurrency: string;
+    /** Orange-light threshold; 0 disables the amount check. */
+    alertBalance: number;
+    /** Orange-light percentage threshold; 0 disables the percentage check. */
+    alertBalancePercent: number;
+    /** Balance value treated as 100% for percentage checks. */
+    balancePercentBase: number;
 }
 export declare const Config: z<Schemastery.ObjectS<{
     keyRef: z<string, string>;
     baseURL: z<string, string>;
     platformUsageURL: z<string, string>;
     timeoutMs: z<number, number>;
+    healthCurrency: z<string, string>;
+    alertBalance: z<number, number>;
+    alertBalancePercent: z<number, number>;
+    balancePercentBase: z<number, number>;
 }>, Schemastery.ObjectT<{
     keyRef: z<string, string>;
     baseURL: z<string, string>;
     platformUsageURL: z<string, string>;
     timeoutMs: z<number, number>;
+    healthCurrency: z<string, string>;
+    alertBalance: z<number, number>;
+    alertBalancePercent: z<number, number>;
+    balancePercentBase: z<number, number>;
 }>>;
 export declare function apply(ctx: PluginContext, config: Config): void;
 export {};
