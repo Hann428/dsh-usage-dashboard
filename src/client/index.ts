@@ -6,7 +6,7 @@
  * surface like dsh-market, so this external package stays free of
  * monorepo-internal type dependencies.
  */
-import { createElement as h, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { createElement as h, useEffect, useMemo, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
 
 interface SlotsService {
   inject(slot: string, register: () => unknown): void
@@ -27,7 +27,7 @@ export function apply(ctx: ClientContext): void {
       name: 'conversation.view',
       id: 'dsh-usage-dashboard',
       order: 20,
-      label: () => '用量',
+      label: () => h(UsageTabLabel, {}),
     }, () => h(UsagePanel, {})),
   ), 'dsh-usage-dashboard: panel')
 }
@@ -66,6 +66,8 @@ interface BalanceHealth {
   currency: string
   amount?: number
   percent?: number
+  percentBase?: number
+  updatedAt?: number
   triggeredBy: ('amount' | 'percent')[]
 }
 
@@ -87,6 +89,31 @@ type State =
   | { phase: 'loading' }
   | { phase: 'error'; message: string }
   | { phase: 'ready'; data: ApiResponse }
+
+interface ThresholdDraft {
+  alertBalance: string
+  alertBalancePercent: string
+}
+
+const HEALTH_LEVEL_STORAGE_KEY = 'dsh-usage-dashboard:health-thresholds'
+const DEFAULT_PERCENT_BASE = 100
+const DEFAULT_THRESHOLDS: ThresholdDraft = { alertBalance: '', alertBalancePercent: '' }
+
+const healthStore = (() => {
+  let snapshot: BalanceHealth = { level: 'unknown', currency: 'CNY', triggeredBy: [] }
+  const listeners = new Set<() => void>()
+  return {
+    getSnapshot: () => snapshot,
+    subscribe: (listener: () => void) => {
+      listeners.add(listener)
+      return () => { listeners.delete(listener) }
+    },
+    publish: (next: BalanceHealth) => {
+      snapshot = next
+      for (const listener of listeners) listener()
+    },
+  }
+})()
 
 const row = (label: string, value: string): ReactNode =>
   h('div', { style: { display: 'flex', justifyContent: 'space-between', gap: '12px', padding: '4px 0' } },
@@ -113,6 +140,7 @@ const box: CSSProperties = {
 function UsagePanel(): ReactNode {
   const [tick, setTick] = useState(0)
   const [now, setNow] = useState(() => new Date())
+  const [thresholds, setThresholds] = useState(loadThresholds)
   const [state, setState] = useState<State>({ phase: 'loading' })
 
   useEffect(() => {
@@ -140,6 +168,23 @@ function UsagePanel(): ReactNode {
   }, [])
 
   const refresh = (): void => setTick((t) => t + 1)
+  const editThreshold = (field: keyof ThresholdDraft, value: string): void => {
+    setThresholds((current) => {
+      const next = { ...current, [field]: value }
+      saveThresholds(next)
+      return next
+    })
+  }
+  const readyData = state.phase === 'ready' ? state.data : undefined
+  const health = useMemo((): BalanceHealth =>
+    readyData === undefined
+      ? { level: 'unknown', currency: 'CNY', triggeredBy: [], updatedAt: Date.now() }
+      : computeHealth(readyData, thresholds),
+  [readyData, thresholds])
+
+  useEffect(() => {
+    healthStore.publish(health)
+  }, [health])
 
   if (state.phase === 'loading') {
     return h('div', { style: box }, '加载中…')
@@ -152,20 +197,21 @@ function UsagePanel(): ReactNode {
   }
   const data = state.data
   const updated = new Date(data.ts).toLocaleTimeString()
+
   return h('div', { style: box },
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
       h('span', { style: { fontWeight: 600, fontSize: '14px' } }, 'DeepSeek 用量'),
-      h('span', { style: headerActionsStyle },
-        healthDot(data.health, data.ts, now),
-        h('a', {
+      h('a', {
           href: data.platformUsageURL,
           target: '_blank',
           rel: 'noopener noreferrer',
           style: linkStyle,
-        }, '打开平台用量页 →'))),
+        }, '打开平台用量页 →')),
     data.configured && data.balance !== undefined
       ? h('div', { style: { display: 'flex', flexDirection: 'column', gap: '4px' } },
         row('账户可用', data.balance.is_available ? '是' : '否'),
+        thresholdRow('告警金额', thresholds.alertBalance, 'alertBalance', (value) => { editThreshold('alertBalance', value) }),
+        thresholdRow('告警金额（按百分比）', thresholds.alertBalancePercent, 'alertBalancePercent', (value) => { editThreshold('alertBalancePercent', value) }),
         pricingRows(data.pricing, now),
         ...data.balance.balance_infos.map((info) =>
           h('div', { key: info.currency, style: { borderTop: '1px solid #2a3040', marginTop: '4px', paddingTop: '4px' } },
@@ -182,12 +228,6 @@ const linkStyle: CSSProperties = {
   color: '#7aa2f7',
   textDecoration: 'none',
   fontWeight: 600,
-}
-
-const headerActionsStyle: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '10px',
 }
 
 const healthDotBaseStyle: CSSProperties = {
@@ -209,10 +249,47 @@ const buttonStyle: CSSProperties = {
   fontSize: '13px',
 }
 
-function healthDot(health: BalanceHealth | undefined, updatedAt: number, now: Date): ReactNode {
+const thresholdInputStyle: CSSProperties = {
+  width: '96px',
+  boxSizing: 'border-box',
+  border: '1px solid #343b4d',
+  borderRadius: '4px',
+  background: '#111318',
+  color: '#d6dae2',
+  padding: '2px 6px',
+  fontFamily: 'monospace',
+  fontSize: '12px',
+  outline: 'none',
+}
+
+const tabLabelStyle: CSSProperties = {
+  position: 'relative',
+  display: 'inline-block',
+  paddingRight: '10px',
+}
+
+const tabDotStyle: CSSProperties = {
+  position: 'absolute',
+  top: '-4px',
+  right: '-2px',
+}
+
+function UsageTabLabel(): ReactNode {
+  const health = useSyncExternalStore(healthStore.subscribe, healthStore.getSnapshot)
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(new Date()), 1000)
+    return () => window.clearInterval(id)
+  }, [])
+  return h('span', { style: tabLabelStyle },
+    '用量',
+    h('span', { style: tabDotStyle }, healthDot(health, now)))
+}
+
+function healthDot(health: BalanceHealth | undefined, now: Date): ReactNode {
   const level = health?.level ?? 'unknown'
   const color = level === 'warning' ? '#f6a04d' : level === 'ok' ? '#58c777' : '#596070'
-  const elapsed = now.getTime() - updatedAt
+  const elapsed = now.getTime() - (health?.updatedAt ?? 0)
   const blinking = level === 'warning' && elapsed >= 0 && elapsed < 60_000
   const visible = !blinking || Math.floor(elapsed / 3_000) % 2 === 0
   return h('span', {
@@ -226,6 +303,71 @@ function healthDot(health: BalanceHealth | undefined, updatedAt: number, now: Da
       transition: 'opacity 180ms ease',
     },
   })
+}
+
+function thresholdRow(label: string, value: string, id: string, onEdit: (value: string) => void): ReactNode {
+  return h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '3px 0' } },
+    h('label', { htmlFor: id, style: thresholdLabelStyle }, label),
+    h('input', {
+      id,
+      type: 'text',
+      inputMode: 'decimal',
+      value,
+      placeholder: '0',
+      style: thresholdInputStyle,
+      onChange: (event: { target: { value: string } }) => { onEdit(event.target.value) },
+    }))
+}
+
+function computeHealth(data: ApiResponse, thresholds: ThresholdDraft): BalanceHealth {
+  const base = data.health ?? { level: 'unknown' as const, currency: 'CNY', triggeredBy: [] }
+  if (!data.configured || data.balance === undefined || base.amount === undefined) {
+    return { ...base, level: 'unknown', triggeredBy: [], updatedAt: data.ts }
+  }
+  const alertBalance = parseOptionalNumber(thresholds.alertBalance)
+  const alertBalancePercent = parseOptionalNumber(thresholds.alertBalancePercent)
+  const percentBase = base.percentBase ?? DEFAULT_PERCENT_BASE
+  const percent = percentBase > 0 ? base.amount / percentBase * 100 : undefined
+  const triggeredBy: ('amount' | 'percent')[] = []
+  if (alertBalance !== undefined && base.amount < alertBalance) triggeredBy.push('amount')
+  if (percent !== undefined && alertBalancePercent !== undefined && percent < alertBalancePercent) triggeredBy.push('percent')
+  return {
+    ...base,
+    percent,
+    percentBase,
+    level: triggeredBy.length > 0 ? 'warning' : 'ok',
+    triggeredBy,
+    updatedAt: data.ts,
+  }
+}
+
+function parseOptionalNumber(value: string): number | undefined {
+  const trimmed = value.trim()
+  if (trimmed === '') return undefined
+  const number = Number(trimmed)
+  return Number.isFinite(number) && number > 0 ? number : undefined
+}
+
+function loadThresholds(): ThresholdDraft {
+  try {
+    const raw = window.localStorage.getItem(HEALTH_LEVEL_STORAGE_KEY)
+    if (raw === null) return DEFAULT_THRESHOLDS
+    const parsed = JSON.parse(raw) as Partial<ThresholdDraft>
+    return {
+      alertBalance: typeof parsed.alertBalance === 'string' ? parsed.alertBalance : '',
+      alertBalancePercent: typeof parsed.alertBalancePercent === 'string' ? parsed.alertBalancePercent : '',
+    }
+  } catch {
+    return DEFAULT_THRESHOLDS
+  }
+}
+
+function saveThresholds(thresholds: ThresholdDraft): void {
+  try {
+    window.localStorage.setItem(HEALTH_LEVEL_STORAGE_KEY, JSON.stringify(thresholds))
+  } catch {
+    // Storage failures leave the current in-memory threshold active.
+  }
 }
 
 function pricingRows(pricing: PricingInfo | undefined, now: Date): ReactNode {
@@ -268,6 +410,11 @@ const statusBarStyle: CSSProperties = {
   flexWrap: 'wrap',
   padding: '6px 0 8px',
   color: '#8b93a7',
+}
+
+const thresholdLabelStyle: CSSProperties = {
+  ...labelStyle,
+  flex: '0 0 150px',
 }
 
 const priceGridStyle: CSSProperties = {

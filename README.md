@@ -10,7 +10,8 @@ It adds a compact **Usage** tab to the conversation view. The tab shows the Deep
 - Current official prices for `deepseek-v4-flash` and `deepseek-v4-pro`.
 - Peak/off-peak status based on Beijing time, with orange peak and green off-peak labels.
 - Live countdown to the next peak/off-peak switch.
-- Compact balance health light: green when usable, orange when balance is below the configured amount or percentage threshold.
+- Compact balance health light on the Usage tab label: green when usable, orange when balance is below the amount or percentage warning threshold.
+- Inline warning threshold inputs for amount and percentage. Values are saved in browser localStorage and update the tab light immediately.
 - Host-side API-key handling: the browser receives only the query result, never the key.
 - Optional `dev_usage_balance` tool for agents to inspect balance and pricing data.
 
@@ -42,7 +43,7 @@ The plugin uses the standard `DEEPSEEK_API_KEY` credential reference by default.
 
 Configure the key in Harness Settings -> Models. The plugin reads the credential through the Harness credentials service.
 
-`alertBalance` and `alertBalancePercent` are optional warning thresholds. Set either to `0` to disable that check. `balancePercentBase` is the user-defined amount treated as 100% for percentage checks.
+`alertBalance` and `alertBalancePercent` are optional default warning thresholds. The Usage panel also exposes inline amount and percentage fields; those browser-local values override the displayed tab light immediately. Set either threshold to `0` or leave the panel field blank to disable that check. `balancePercentBase` is the user-defined amount treated as 100% for percentage checks.
 
 ## Notes
 

@@ -115,6 +115,7 @@ interface BalanceHealth {
   currency: string
   amount?: number
   percent?: number
+  percentBase?: number
   triggeredBy: ('amount' | 'percent')[]
 }
 
@@ -193,11 +194,12 @@ function balanceHealth(payload: BalancePayload | undefined, config: Config): Bal
   if (config.alertBalance > 0 && amount < config.alertBalance) {
     triggeredBy.push('amount')
   }
-  const percent = config.balancePercentBase > 0 ? amount / config.balancePercentBase * 100 : undefined
+  const percentBase = config.balancePercentBase > 0 ? config.balancePercentBase : undefined
+  const percent = percentBase === undefined ? undefined : amount / percentBase * 100
   if (percent !== undefined && config.alertBalancePercent > 0 && percent < config.alertBalancePercent) {
     triggeredBy.push('percent')
   }
-  return { level: triggeredBy.length > 0 ? 'warning' : 'ok', currency, amount, percent, triggeredBy }
+  return { level: triggeredBy.length > 0 ? 'warning' : 'ok', currency, amount, percent, percentBase, triggeredBy }
 }
 
 export function apply(ctx: PluginContext, config: Config): void {
