@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Move the percent suffix inside the input box and increase orange-light blink cadence for a 42-second warning window.
 - Show a dim neutral tab light when both warning threshold switches are off.
 - Add independent switches for amount and percentage warning thresholds.
 - Start the orange-light blink window when the displayed balance state enters warning.

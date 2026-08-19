@@ -268,6 +268,19 @@ const buttonStyle: CSSProperties = {
 }
 
 const thresholdInputStyle: CSSProperties = {
+  width: '100%',
+  boxSizing: 'border-box',
+  minWidth: 0,
+  border: 0,
+  background: 'transparent',
+  color: '#d6dae2',
+  padding: 0,
+  fontFamily: 'monospace',
+  fontSize: '12px',
+  outline: 'none',
+}
+
+const thresholdInputBoxStyle: CSSProperties = {
   width: '96px',
   boxSizing: 'border-box',
   border: '1px solid #343b4d',
@@ -275,15 +288,15 @@ const thresholdInputStyle: CSSProperties = {
   background: '#111318',
   color: '#d6dae2',
   padding: '2px 6px',
-  fontFamily: 'monospace',
-  fontSize: '12px',
-  outline: 'none',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '3px',
 }
 
 const thresholdInputWrapStyle: CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
-  gap: '5px',
+  gap: '6px',
   fontFamily: 'monospace',
 }
 
@@ -316,7 +329,7 @@ function UsageTabLabel(): ReactNode {
   const health = useSyncExternalStore(healthStore.subscribe, healthStore.getSnapshot)
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {
-    const id = window.setInterval(() => setNow(new Date()), 1000)
+    const id = window.setInterval(() => setNow(new Date()), 500)
     return () => window.clearInterval(id)
   }, [])
   return h('span', { style: tabLabelStyle },
@@ -326,18 +339,18 @@ function UsageTabLabel(): ReactNode {
 
 function healthDot(health: BalanceHealth | undefined, now: Date): ReactNode {
   const level = health?.level ?? 'unknown'
-  const color = level === 'warning' ? '#f6a04d' : level === 'ok' ? '#58c777' : '#596070'
+  const color = level === 'warning' ? '#ffb454' : level === 'ok' ? '#58c777' : '#596070'
   const elapsed = now.getTime() - (health?.updatedAt ?? 0)
-  const blinking = level === 'warning' && elapsed >= 0 && elapsed < 60_000
-  const visible = !blinking || Math.floor(elapsed / 3_000) % 2 === 0
+  const blinking = level === 'warning' && elapsed >= 0 && elapsed < 42_000
+  const visible = !blinking || Math.floor(elapsed / 750) % 2 === 0
   return h('span', {
     'aria-hidden': true,
     title: level === 'warning' ? '余额低于告警值' : level === 'ok' ? '余额正常' : '余额状态未知',
     style: {
       ...healthDotBaseStyle,
       background: color,
-      opacity: visible ? 1 : 0.28,
-      boxShadow: level === 'unknown' ? 'none' : `0 0 7px ${color}`,
+      opacity: visible ? 1 : 0.38,
+      boxShadow: level === 'unknown' ? 'none' : `0 0 ${level === 'warning' ? 11 : 7}px ${level === 'warning' ? 3 : 0}px ${color}`,
       transition: 'opacity 180ms ease',
     },
   })
@@ -363,16 +376,17 @@ function thresholdRow(
         onClick: () => { onToggle(!enabled) },
         style: thresholdSwitchStyle(enabled),
       }, h('span', { style: { ...switchKnobStyle, transform: enabled ? 'translateX(12px)' : 'translateX(0)' } })),
-      h('input', {
-        id,
-        type: 'text',
-        inputMode: 'decimal',
-        value,
-        placeholder: '0',
-        style: thresholdInputStyle,
-        onChange: (event: { target: { value: string } }) => { onEdit(event.target.value) },
-      }),
-      suffix === undefined ? null : h('span', { style: thresholdSuffixStyle }, suffix)))
+      h('span', { style: thresholdInputBoxStyle },
+        h('input', {
+          id,
+          type: 'text',
+          inputMode: 'decimal',
+          value,
+          placeholder: '0',
+          style: thresholdInputStyle,
+          onChange: (event: { target: { value: string } }) => { onEdit(event.target.value) },
+        }),
+        suffix === undefined ? null : h('span', { style: thresholdSuffixStyle }, suffix))))
 }
 
 function computeHealth(data: ApiResponse, thresholds: ThresholdDraft): BalanceHealth {
