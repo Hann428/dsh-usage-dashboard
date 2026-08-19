@@ -10,7 +10,6 @@ It adds a compact **Usage** tab to the conversation view. The tab shows the Deep
 - Current official prices for `deepseek-v4-flash` and `deepseek-v4-pro`.
 - Peak/off-peak status based on Beijing time, with orange peak and green off-peak labels.
 - Live countdown to the next peak/off-peak switch.
-- Default-model highlight when the Harness default model is one of the supported DeepSeek models.
 - Host-side API-key handling: the browser receives only the query result, never the key.
 - Optional `dev_usage_balance` tool for agents to inspect balance and pricing data.
 

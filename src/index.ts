@@ -12,9 +12,6 @@
  */
 import type { Context } from 'cordis'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { readFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import z from 'schemastery'
@@ -102,7 +99,6 @@ interface PricingInfo {
 }
 
 const PRICING_DOCS_URL = 'https://api-docs.deepseek.com/zh-cn/quick_start/pricing'
-const DEEPSEEK_MODELS = new Set(['deepseek-v4-flash', 'deepseek-v4-pro'])
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   const text = JSON.stringify(body)
@@ -159,19 +155,6 @@ function parsePricingRows(html: string, period: BillingPeriod): PricingInfo['row
     throw new Error('官方价格表格式未匹配')
   }
   return { cacheHitInput, cacheMissInput, output }
-}
-
-async function readDefaultModel(): Promise<string | undefined> {
-  const dshHome = process.env.DSH_HOME ?? join(homedir(), '.dsh')
-  try {
-    const text = await readFile(join(dshHome, 'settings.yaml'), 'utf8')
-    const match = text.match(/^agent-default-model:\r?\n(?:[ \t]+[^\r\n]*\r?\n)*?[ \t]+model:[ \t]*(\S+)/m)
-    const model = match?.[1]
-    return model !== undefined && DEEPSEEK_MODELS.has(model) ? model : undefined
-  } catch {
-    // Missing or unreadable settings only disables the default-model highlight.
-    return undefined
-  }
 }
 
 export function apply(ctx: PluginContext, config: Config): void {
@@ -253,7 +236,7 @@ export function apply(ctx: PluginContext, config: Config): void {
         sendJson(res, 404, { ok: false, error: { code: 'NOT_FOUND', message: '未知端点' } })
         return
       }
-      const [result, pricing, defaultModel] = await Promise.all([fetchBalance(), fetchPricing(), readDefaultModel()])
+      const [result, pricing] = await Promise.all([fetchBalance(), fetchPricing()])
       sendJson(res, 200, {
         ok: true,
         ts: Date.now(),
@@ -261,7 +244,6 @@ export function apply(ctx: PluginContext, config: Config): void {
         baseURL: config.baseURL,
         platformUsageURL: config.platformUsageURL,
         pricing,
-        defaultModel,
         ...(result.ok
           ? { configured: true, balance: result.payload, source: result.source }
           : { configured: false, error: { code: result.code, message: result.message } }),

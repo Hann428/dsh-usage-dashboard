@@ -68,7 +68,6 @@ interface ApiResponse {
   baseURL: string
   platformUsageURL: string
   pricing?: PricingInfo
-  defaultModel?: string
   configured?: boolean
   balance?: { is_available: boolean; balance_infos: BalanceInfo[] }
   source?: string
@@ -156,7 +155,7 @@ function UsagePanel(): ReactNode {
     data.configured && data.balance !== undefined
       ? h('div', { style: { display: 'flex', flexDirection: 'column', gap: '4px' } },
         row('账户可用', data.balance.is_available ? '是' : '否'),
-        pricingRows(data.pricing, data.defaultModel, now),
+        pricingRows(data.pricing, now),
         ...data.balance.balance_infos.map((info) =>
           h('div', { key: info.currency, style: { borderTop: '1px solid #2a3040', marginTop: '4px', paddingTop: '4px' } },
             row(`${info.currency} 总额`, info.total_balance),
@@ -185,7 +184,7 @@ const buttonStyle: CSSProperties = {
   fontSize: '13px',
 }
 
-function pricingRows(pricing: PricingInfo | undefined, defaultModel: string | undefined, now: Date): ReactNode {
+function pricingRows(pricing: PricingInfo | undefined, now: Date): ReactNode {
   if (pricing === undefined) {
     return null
   }
@@ -198,25 +197,24 @@ function pricingRows(pricing: PricingInfo | undefined, defaultModel: string | un
       h('span', {}, `距${transition.nextLabel} ${transition.countdown}`),
       h('span', {}, hint)),
     pricing.rows !== undefined
-      ? priceRows(pricing.rows, defaultModel)
+      ? priceRows(pricing.rows)
       : row('官方当前价格', `暂不可用${pricing.error !== undefined ? `（${pricing.error.code}）` : ''}`),
     row('价格同步', '官方文档'))
 }
 
-function priceRows(rows: NonNullable<PricingInfo['rows']>, defaultModel: string | undefined): ReactNode {
+function priceRows(rows: NonNullable<PricingInfo['rows']>): ReactNode {
   return h('div', { style: priceGridStyle },
     h('span', { style: priceLabelStyle },
       h('span', {}, '官方当前价格'),
       h('span', { style: { fontSize: '12px' } }, '（元/百万tokens）')),
     h('span', { style: priceValueStyle },
-      modelPriceLine('deepseek-v4-flash', 'Flash', rows.cacheHitInput.flash, rows.cacheMissInput.flash, rows.output.flash, defaultModel),
-      modelPriceLine('deepseek-v4-pro', 'Pro', rows.cacheHitInput.pro, rows.cacheMissInput.pro, rows.output.pro, defaultModel)))
+      modelPriceLine('Flash', rows.cacheHitInput.flash, rows.cacheMissInput.flash, rows.output.flash),
+      modelPriceLine('Pro', rows.cacheHitInput.pro, rows.cacheMissInput.pro, rows.output.pro)))
 }
 
-function modelPriceLine(model: string, label: string, cacheHit: string, cacheMiss: string, output: string, defaultModel: string | undefined): ReactNode {
-  const current = defaultModel === model
-  return h('span', { style: current ? highlightedPriceLineStyle : undefined },
-    `${label}${current ? '（默认）' : ''} ${formatPrices(cacheHit, cacheMiss, output)}`)
+function modelPriceLine(label: string, cacheHit: string, cacheMiss: string, output: string): ReactNode {
+  return h('span', { style: highlightedPriceLineStyle },
+    `${label} ${formatPrices(cacheHit, cacheMiss, output)}`)
 }
 
 const statusBarStyle: CSSProperties = {
