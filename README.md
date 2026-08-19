@@ -4,6 +4,22 @@ DeepSeek usage and billing panel for DeepSeek Harness Web.
 
 It adds a compact **Usage** tab to the conversation view. The tab shows the DeepSeek account balance, current official peak/off-peak pricing, the next price-window countdown, and a direct link to the DeepSeek platform usage page.
 
+## Quick install from GitHub
+
+```bash
+dsh plugin --profile web add github:Hann428/dsh-usage-dashboard
+```
+
+Restart `dsh web`, then open any conversation and select the **Usage** tab.
+
+Requirements:
+
+- DeepSeek Harness Web with plugin support.
+- A configured `DEEPSEEK_API_KEY` credential in Harness Settings -> Models.
+- Network access to `https://api.deepseek.com` and DeepSeek's official pricing docs.
+
+中文简述：这是一个 DeepSeek Harness 用量面板插件，会在会话页添加“用量”标签页，展示账户余额、官方峰谷价格、切换倒计时、平台用量页入口，并提供可本地保存的余额告警灯设置。
+
 ## Features
 
 - Account balance from DeepSeek's official `GET /user/balance` endpoint.
@@ -14,14 +30,6 @@ It adds a compact **Usage** tab to the conversation view. The tab shows the Deep
 - Inline warning threshold switches and inputs for amount and percentage. Values are saved in browser localStorage and update the tab light immediately.
 - Host-side API-key handling: the browser receives only the query result, never the key.
 - Optional `dev_usage_balance` tool for agents to inspect balance and pricing data.
-
-## Install
-
-```bash
-dsh plugin --profile web add github:Hann428/dsh-usage-dashboard
-```
-
-Restart `dsh web`, then open a conversation and select the **Usage** tab.
 
 ## Configuration
 
