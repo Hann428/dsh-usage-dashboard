@@ -206,15 +206,15 @@ export function apply(ctx: PluginContext, config: Config): void {
   const ref = credentialRef(config.keyRef)
 
   const fetchBalance = async (): Promise<BalanceResult> => {
-    const credential = await ctx.credentials.resolve(ref)
-    if (credential === undefined) {
-      return {
-        ok: false,
-        code: 'NO_KEY',
-        message: `${config.keyRef} 未配置（设置 → 模型 → API key）`,
-      }
-    }
     try {
+      const credential = await ctx.credentials.resolve(ref)
+      if (credential === undefined) {
+        return {
+          ok: false,
+          code: 'NO_KEY',
+          message: `${config.keyRef} 未配置（设置 → 模型 → API key）`,
+        }
+      }
       const response = await fetch(`${config.baseURL}/user/balance`, {
         headers: { authorization: `Bearer ${credential.value}` },
         signal: AbortSignal.timeout(config.timeoutMs),

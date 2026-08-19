@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Avoid a stale client type export path and return a normal balance error if credential resolution fails.
 - Match only the price-window countdown number color to the current peak/off-peak state.
 - Move the percent suffix inside the input box and increase orange-light blink cadence for a 42-second warning window.
 - Show a dim neutral tab light when both warning threshold switches are off.
