@@ -459,7 +459,7 @@ function pricingRows(pricing: PricingInfo | undefined, now: Date): ReactNode {
   return h('div', { style: { borderTop: '1px solid #2a3040', marginTop: '4px', paddingTop: '4px' } },
     h('div', { style: statusBarStyle },
       h('span', { style: { color: periodColor, fontWeight: 700 } }, `${pricing.periodLabel}（${pricing.rateLabel}）`),
-      h('span', {}, `距${transition.nextLabel} ${transition.countdown}`),
+      h('span', {}, `距${transition.nextLabel} `, h('span', { style: { color: periodColor } }, transition.countdown)),
       h('span', {}, hint)),
     pricing.rows !== undefined
       ? priceRows(pricing.rows)
