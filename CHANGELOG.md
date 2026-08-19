@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Show a dim neutral tab light when both warning threshold switches are off.
+- Add independent switches for amount and percentage warning thresholds.
+- Start the orange-light blink window when the displayed balance state enters warning.
+- Show a fixed percent suffix next to the percentage warning threshold input.
 - Move the balance health light onto the Usage tab label and add inline warning threshold inputs.
 - Add a compact balance health light with configurable amount and percentage warning thresholds.
 - Remove the misleading default-model highlight from price rows. The Harness conversation model selector owns the current session model display.

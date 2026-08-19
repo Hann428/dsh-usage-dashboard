@@ -93,14 +93,21 @@ type State =
 interface ThresholdDraft {
   alertBalance: string
   alertBalancePercent: string
+  alertBalanceEnabled: boolean
+  alertBalancePercentEnabled: boolean
 }
 
 const HEALTH_LEVEL_STORAGE_KEY = 'dsh-usage-dashboard:health-thresholds'
 const DEFAULT_PERCENT_BASE = 100
-const DEFAULT_THRESHOLDS: ThresholdDraft = { alertBalance: '', alertBalancePercent: '' }
+const DEFAULT_THRESHOLDS: ThresholdDraft = {
+  alertBalance: '',
+  alertBalancePercent: '',
+  alertBalanceEnabled: false,
+  alertBalancePercentEnabled: false,
+}
 
 const healthStore = (() => {
-  let snapshot: BalanceHealth = { level: 'unknown', currency: 'CNY', triggeredBy: [] }
+  let snapshot: BalanceHealth = { level: 'unknown', currency: 'CNY', triggeredBy: [], updatedAt: Date.now() }
   const listeners = new Set<() => void>()
   return {
     getSnapshot: () => snapshot,
@@ -109,7 +116,11 @@ const healthStore = (() => {
       return () => { listeners.delete(listener) }
     },
     publish: (next: BalanceHealth) => {
-      snapshot = next
+      const now = Date.now()
+      const updatedAt = next.level === 'warning' && snapshot.level === 'warning'
+        ? snapshot.updatedAt ?? now
+        : now
+      snapshot = { ...next, updatedAt }
       for (const listener of listeners) listener()
     },
   }
@@ -168,7 +179,14 @@ function UsagePanel(): ReactNode {
   }, [])
 
   const refresh = (): void => setTick((t) => t + 1)
-  const editThreshold = (field: keyof ThresholdDraft, value: string): void => {
+  const editThreshold = (field: 'alertBalance' | 'alertBalancePercent', value: string): void => {
+    setThresholds((current) => {
+      const next = { ...current, [field]: value }
+      saveThresholds(next)
+      return next
+    })
+  }
+  const toggleThreshold = (field: 'alertBalanceEnabled' | 'alertBalancePercentEnabled', value: boolean): void => {
     setThresholds((current) => {
       const next = { ...current, [field]: value }
       saveThresholds(next)
@@ -210,8 +228,8 @@ function UsagePanel(): ReactNode {
     data.configured && data.balance !== undefined
       ? h('div', { style: { display: 'flex', flexDirection: 'column', gap: '4px' } },
         row('账户可用', data.balance.is_available ? '是' : '否'),
-        thresholdRow('告警金额', thresholds.alertBalance, 'alertBalance', (value) => { editThreshold('alertBalance', value) }),
-        thresholdRow('告警金额（按百分比）', thresholds.alertBalancePercent, 'alertBalancePercent', (value) => { editThreshold('alertBalancePercent', value) }),
+        thresholdRow('告警金额', thresholds.alertBalance, 'alertBalance', thresholds.alertBalanceEnabled, (value) => { editThreshold('alertBalance', value) }, (value) => { toggleThreshold('alertBalanceEnabled', value) }),
+        thresholdRow('告警金额（按百分比）', thresholds.alertBalancePercent, 'alertBalancePercent', thresholds.alertBalancePercentEnabled, (value) => { editThreshold('alertBalancePercent', value) }, (value) => { toggleThreshold('alertBalancePercentEnabled', value) }, '%'),
         pricingRows(data.pricing, now),
         ...data.balance.balance_infos.map((info) =>
           h('div', { key: info.currency, style: { borderTop: '1px solid #2a3040', marginTop: '4px', paddingTop: '4px' } },
@@ -262,6 +280,26 @@ const thresholdInputStyle: CSSProperties = {
   outline: 'none',
 }
 
+const thresholdInputWrapStyle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '5px',
+  fontFamily: 'monospace',
+}
+
+const thresholdSuffixStyle: CSSProperties = {
+  color: '#8b93a7',
+  minWidth: '10px',
+}
+
+const switchKnobStyle: CSSProperties = {
+  width: '10px',
+  height: '10px',
+  borderRadius: '50%',
+  background: '#d6dae2',
+  transition: 'transform 140ms ease',
+}
+
 const tabLabelStyle: CSSProperties = {
   position: 'relative',
   display: 'inline-block',
@@ -305,18 +343,36 @@ function healthDot(health: BalanceHealth | undefined, now: Date): ReactNode {
   })
 }
 
-function thresholdRow(label: string, value: string, id: string, onEdit: (value: string) => void): ReactNode {
+function thresholdRow(
+  label: string,
+  value: string,
+  id: string,
+  enabled: boolean,
+  onEdit: (value: string) => void,
+  onToggle: (value: boolean) => void,
+  suffix?: string,
+): ReactNode {
   return h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '3px 0' } },
     h('label', { htmlFor: id, style: thresholdLabelStyle }, label),
-    h('input', {
-      id,
-      type: 'text',
-      inputMode: 'decimal',
-      value,
-      placeholder: '0',
-      style: thresholdInputStyle,
-      onChange: (event: { target: { value: string } }) => { onEdit(event.target.value) },
-    }))
+    h('span', { style: thresholdInputWrapStyle },
+      h('button', {
+        type: 'button',
+        role: 'switch',
+        'aria-checked': enabled,
+        title: `${label}${enabled ? '已启用' : '已关闭'}`,
+        onClick: () => { onToggle(!enabled) },
+        style: thresholdSwitchStyle(enabled),
+      }, h('span', { style: { ...switchKnobStyle, transform: enabled ? 'translateX(12px)' : 'translateX(0)' } })),
+      h('input', {
+        id,
+        type: 'text',
+        inputMode: 'decimal',
+        value,
+        placeholder: '0',
+        style: thresholdInputStyle,
+        onChange: (event: { target: { value: string } }) => { onEdit(event.target.value) },
+      }),
+      suffix === undefined ? null : h('span', { style: thresholdSuffixStyle }, suffix)))
 }
 
 function computeHealth(data: ApiResponse, thresholds: ThresholdDraft): BalanceHealth {
@@ -328,9 +384,12 @@ function computeHealth(data: ApiResponse, thresholds: ThresholdDraft): BalanceHe
   const alertBalancePercent = parseOptionalNumber(thresholds.alertBalancePercent)
   const percentBase = base.percentBase ?? DEFAULT_PERCENT_BASE
   const percent = percentBase > 0 ? base.amount / percentBase * 100 : undefined
+  if (!thresholds.alertBalanceEnabled && !thresholds.alertBalancePercentEnabled) {
+    return { ...base, level: 'unknown', percent, percentBase, triggeredBy: [], updatedAt: data.ts }
+  }
   const triggeredBy: ('amount' | 'percent')[] = []
-  if (alertBalance !== undefined && base.amount < alertBalance) triggeredBy.push('amount')
-  if (percent !== undefined && alertBalancePercent !== undefined && percent < alertBalancePercent) triggeredBy.push('percent')
+  if (thresholds.alertBalanceEnabled && alertBalance !== undefined && base.amount < alertBalance) triggeredBy.push('amount')
+  if (thresholds.alertBalancePercentEnabled && percent !== undefined && alertBalancePercent !== undefined && percent < alertBalancePercent) triggeredBy.push('percent')
   return {
     ...base,
     percent,
@@ -344,7 +403,7 @@ function computeHealth(data: ApiResponse, thresholds: ThresholdDraft): BalanceHe
 function parseOptionalNumber(value: string): number | undefined {
   const trimmed = value.trim()
   if (trimmed === '') return undefined
-  const number = Number(trimmed)
+  const number = Number(trimmed.endsWith('%') ? trimmed.slice(0, -1).trim() : trimmed)
   return Number.isFinite(number) && number > 0 ? number : undefined
 }
 
@@ -356,6 +415,12 @@ function loadThresholds(): ThresholdDraft {
     return {
       alertBalance: typeof parsed.alertBalance === 'string' ? parsed.alertBalance : '',
       alertBalancePercent: typeof parsed.alertBalancePercent === 'string' ? parsed.alertBalancePercent : '',
+      alertBalanceEnabled: typeof parsed.alertBalanceEnabled === 'boolean'
+        ? parsed.alertBalanceEnabled
+        : typeof parsed.alertBalance === 'string' && parsed.alertBalance.trim() !== '',
+      alertBalancePercentEnabled: typeof parsed.alertBalancePercentEnabled === 'boolean'
+        ? parsed.alertBalancePercentEnabled
+        : typeof parsed.alertBalancePercent === 'string' && parsed.alertBalancePercent.trim() !== '',
     }
   } catch {
     return DEFAULT_THRESHOLDS
@@ -415,6 +480,22 @@ const statusBarStyle: CSSProperties = {
 const thresholdLabelStyle: CSSProperties = {
   ...labelStyle,
   flex: '0 0 150px',
+}
+
+function thresholdSwitchStyle(enabled: boolean): CSSProperties {
+  const color = enabled ? '#58c777' : '#343b4d'
+  return {
+    width: '28px',
+    height: '16px',
+    borderRadius: '999px',
+    border: `1px solid ${color}`,
+    background: enabled ? 'rgba(88, 199, 119, 0.28)' : 'rgba(52, 59, 77, 0.42)',
+    padding: '2px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    cursor: 'pointer',
+    boxSizing: 'border-box',
+  }
 }
 
 const priceGridStyle: CSSProperties = {

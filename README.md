@@ -10,8 +10,8 @@ It adds a compact **Usage** tab to the conversation view. The tab shows the Deep
 - Current official prices for `deepseek-v4-flash` and `deepseek-v4-pro`.
 - Peak/off-peak status based on Beijing time, with orange peak and green off-peak labels.
 - Live countdown to the next peak/off-peak switch.
-- Compact balance health light on the Usage tab label: green when usable, orange when balance is below the amount or percentage warning threshold.
-- Inline warning threshold inputs for amount and percentage. Values are saved in browser localStorage and update the tab light immediately.
+- Compact balance health light on the Usage tab label: green when usable, orange when balance is below an enabled amount or percentage warning threshold, dim neutral when both switches are off.
+- Inline warning threshold switches and inputs for amount and percentage. Values are saved in browser localStorage and update the tab light immediately.
 - Host-side API-key handling: the browser receives only the query result, never the key.
 - Optional `dev_usage_balance` tool for agents to inspect balance and pricing data.
 
